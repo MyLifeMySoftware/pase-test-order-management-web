@@ -1,5 +1,6 @@
 package pase.test.com.order.management.config;
 
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
@@ -29,76 +30,73 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        log.info("Configuring security filter chain for Order Management service...");
+        log.info("Configuring security filter chain for Management Service...");
 
         http
+                // Disable CSRF since we're using JWT
                 .csrf(AbstractHttpConfigurer::disable)
+
+                // Configure CORS
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
+                // Stateless session management (no sessions)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+                // Disable default authentication mechanisms
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .logout(AbstractHttpConfigurer::disable)
+
+                // Custom authentication entry point for JWT
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(jwtAuthenticationEntryPoint))
+
+                // Configure URL authorization
                 .authorizeHttpRequests(authz -> {
-                    log.info("Configuring authorization rules for Order Management...");
+                    log.info("Configuring authorization rules for Management Service...");
                     authz
-                            // Health checks and docs
+                            // Public endpoints
                             .requestMatchers(
-                                    "/actuator/**",
+                                    "/api/v1/management/health"
+                            ).permitAll()
+
+                            // Swagger and OpenAPI docs - ALLOW ALL
+                            .requestMatchers(
                                     "/swagger-ui/**",
                                     "/swagger-ui.html",
                                     "/v3/api-docs/**",
                                     "/swagger-resources/**",
-                                    "/webjars/**",
-                                    "/favicon.ico",
-                                    "/error"
+                                    "/webjars/**"
                             ).permitAll()
 
-                            // OPTIONS for CORS
+                            // Actuator endpoints
+                            .requestMatchers("/actuator/**").permitAll()
+
+                            // Static resources
+                            .requestMatchers("/favicon.ico", "/error").permitAll()
+
+                            // OPTIONS for CORS preflight
                             .requestMatchers("OPTIONS").permitAll()
 
-                            // Admin-only endpoints for order management
-                            .requestMatchers(
-                                    "/api/v1/orders/admin/**",
-                                    "/api/v1/orders/statistics",
-                                    "/api/v1/orders/reports/**",
-                                    "/api/v1/orders/bulk/**"
-                            ).hasRole("ADMIN")
-
-                            // Moderator and Admin endpoints
-                            .requestMatchers(
-                                    "/api/v1/orders/all",
-                                    "/api/v1/orders/search",
-                                    "/api/v1/orders/*/status"
-                            ).hasAnyRole("ADMIN", "MODERATOR")
-
-                            // User endpoints (all authenticated users can manage their own orders)
-                            .requestMatchers(
-                                    "/api/v1/orders/my-orders",
-                                    "/api/v1/orders/create",
-                                    "/api/v1/orders/*/cancel"
-                            ).hasAnyRole("USER", "ADMIN", "MODERATOR")
-
-                            // Specific order access (users can only access their own orders)
-                            .requestMatchers(
-                                    "/api/v1/orders/{id}"
-                            ).hasAnyRole("USER", "ADMIN", "MODERATOR")
-
-                            // Health endpoint
-                            .requestMatchers("/api/v1/orders/health").permitAll()
+                            // All management endpoints require authentication via JWT
+                            .requestMatchers("/api/v1/management/**").authenticated()
 
                             // All other requests require authentication
                             .anyRequest().authenticated();
                 })
+
+                // Add JWT filter before UsernamePasswordAuthenticationFilter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
-        log.info("Security filter chain configured successfully for Order Management service");
+        log.info("Security filter chain configured successfully for Management Service");
         return http.build();
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(java.util.List.of("*"));
-        configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        configuration.setAllowedHeaders(java.util.List.of("*"));
+        configuration.setAllowedOriginPatterns(List.of("*"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
