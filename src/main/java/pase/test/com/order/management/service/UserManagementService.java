@@ -1,11 +1,8 @@
 package pase.test.com.order.management.service;
 
-import java.time.LocalDateTime;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -20,102 +17,45 @@ import pase.test.com.database.exception.auth.UserNotFoundException;
 import pase.test.com.database.repository.user.RoleRepository;
 import pase.test.com.database.repository.user.UserRepository;
 import pase.test.com.order.management.dto.UserCreateRequest;
-import pase.test.com.order.management.dto.UserListResponse;
 import pase.test.com.order.management.dto.UserResponse;
 import pase.test.com.order.management.dto.UserUpdateRequest;
-import pase.test.com.order.management.mapper.UserMapper;
-
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class UserManagementService {
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
-    private final UserMapper userMapper;
-
-    /**
-     * Get user profile by username
-     */
-    public UserResponse getUserProfile(String username) {
-        log.debug("Getting profile for user: {}", username);
-
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UserNotFoundException("User not found: " + username));
-
-        return userMapper.toUserResponse(user);
-    }
-
-    /**
-     * Update user profile
-     */
-    @Transactional
-    public UserResponse updateUserProfile(String username, UserUpdateRequest request) {
-        log.debug("Updating profile for user: {}", username);
-
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UserNotFoundException("User not found: " + username));
-
-        // Update allowed fields for profile update
-        if (request.getFirstName() != null) {
-            user.setFirstName(request.getFirstName());
-        }
-        if (request.getLastName() != null) {
-            user.setLastName(request.getLastName());
-        }
-        if (request.getEmail() != null) {
-            // Check if email is already taken by another user
-            userRepository.findByEmail(request.getEmail())
-                    .filter(existingUser -> !existingUser.getId().equals(user.getId()))
-                    .ifPresent(existingUser -> {
-                        throw new UserAlreadyExistsException("Email already exists: " + request.getEmail());
-                    });
-            user.setEmail(request.getEmail());
-        }
-
-        User savedUser = userRepository.save(user);
-        log.info("Profile updated successfully for user: {}", username);
-
-        return userMapper.toUserResponse(savedUser);
-    }
 
     /**
      * Get all users with pagination
      */
-    public Page<UserListResponse> getAllUsers(Pageable pageable) {
-        log.debug("Getting all users with pagination: {}", pageable);
-
-        Page<User> users = userRepository.findAll(pageable);
-        return users.map(userMapper::toUserListResponse);
+    public Page<UserResponse> getAllUsers(Pageable pageable) {
+        log.info("Fetching all users with pagination: {}", pageable);
+        return userRepository.findAll(pageable)
+                .map(this::convertToUserResponse);
     }
 
     /**
      * Get user by ID
      */
-    public UserResponse getUserById(Long userId) {
-        log.debug("Getting user by ID: {}", userId);
-
-        User user = userRepository.findById(userId.toString())
-                .orElseThrow(() -> new UserNotFoundException("User not found with ID: " + userId));
-
-        return userMapper.toUserResponse(user);
+    public UserResponse getUserById(Long id) {
+        log.info("Fetching user by ID: {}", id);
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new UserNotFoundException("User not found with ID: " + id));
+        return convertToUserResponse(user);
     }
 
     /**
-     * Search users by username or email
+     * Get user by username
      */
-    public List<UserListResponse> searchUsers(String query) {
-        log.debug("Searching users with query: {}", query);
-
-        List<User> users = userRepository.findByUsernameContainingIgnoreCaseOrEmailContainingIgnoreCase(
-                query, query);
-
-        return users.stream()
-                .map(userMapper::toUserListResponse)
-                .collect(Collectors.toList());
+    public UserResponse getUserByUsername(String username) {
+        log.info("Fetching user by username: {}", username);
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UserNotFoundException("User not found with username: " + username));
+        return convertToUserResponse(user);
     }
 
     /**
@@ -123,23 +63,31 @@ public class UserManagementService {
      */
     @Transactional
     public UserResponse createUser(UserCreateRequest request) {
-        log.debug("Creating user: {}", request.getUsername());
+        log.info("Creating new user: {}", request.getUsername());
 
-        // Check if username already exists
+        // Check if user already exists
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new UserAlreadyExistsException("Username already exists: " + request.getUsername());
         }
 
-        // Check if email already exists
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new UserAlreadyExistsException("Email already exists: " + request.getEmail());
         }
 
         // Get roles
-        Set<Role> roles = request.getRoleIds().stream()
-                .map(roleId -> roleRepository.findById(roleId)
-                        .orElseThrow(() -> new UserNotFoundException("Role not found with ID: " + roleId)))
-                .collect(Collectors.toSet());
+        Set<Role> roles = new HashSet<>();
+        if (request.getRoleNames() != null && !request.getRoleNames().isEmpty()) {
+            for (String roleName : request.getRoleNames()) {
+                Role role = roleRepository.findByName(roleName)
+                        .orElseThrow(() -> new RuntimeException("Role not found: " + roleName));
+                roles.add(role);
+            }
+        } else {
+            // Default role
+            Role defaultRole = roleRepository.findByName("USER")
+                    .orElseThrow(() -> new RuntimeException("Default role USER not found"));
+            roles.add(defaultRole);
+        }
 
         // Create user
         User user = User.builder()
@@ -148,138 +96,168 @@ public class UserManagementService {
                 .password(passwordEncoder.encode(request.getPassword()))
                 .firstName(request.getFirstName())
                 .lastName(request.getLastName())
-                .enabled(request.isEnabled())
+                .enabled(request.getEnabled() != null ? request.getEnabled() : true)
                 .accountNonExpired(true)
                 .accountNonLocked(true)
                 .credentialsNonExpired(true)
                 .roles(roles)
                 .build();
 
-        User savedUser = userRepository.save(user);
-        log.info("User created successfully: {}", request.getUsername());
+        user = userRepository.save(user);
+        log.info("User created successfully: {}", user.getUsername());
 
-        return userMapper.toUserResponse(savedUser);
+        return convertToUserResponse(user);
     }
 
     /**
-     * Update user by ID
+     * Update user
      */
     @Transactional
-    public UserResponse updateUser(Long userId, UserUpdateRequest request) {
-        log.debug("Updating user with ID: {}", userId);
+    public UserResponse updateUser(Long id, UserUpdateRequest request) {
+        log.info("Updating user with ID: {}", id);
 
-        User user = userRepository.findById(userId.toString())
-                .orElseThrow(() -> new UserNotFoundException("User not found with ID: " + userId));
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new UserNotFoundException("User not found with ID: " + id));
 
         // Update fields
+        if (request.getEmail() != null && !request.getEmail().equals(user.getEmail())) {
+            if (userRepository.existsByEmail(request.getEmail())) {
+                throw new UserAlreadyExistsException("Email already exists: " + request.getEmail());
+            }
+            user.setEmail(request.getEmail());
+        }
+
         if (request.getFirstName() != null) {
             user.setFirstName(request.getFirstName());
         }
+
         if (request.getLastName() != null) {
             user.setLastName(request.getLastName());
         }
-        if (request.getEmail() != null) {
-            // Check if email is already taken by another user
-            userRepository.findByEmail(request.getEmail())
-                    .filter(existingUser -> !existingUser.getId().equals(user.getId()))
-                    .ifPresent(existingUser -> {
-                        throw new UserAlreadyExistsException("Email already exists: " + request.getEmail());
-                    });
-            user.setEmail(request.getEmail());
+
+        if (request.getEnabled() != null) {
+            user.setEnabled(request.getEnabled());
         }
-        if (request.getPassword() != null && !request.getPassword().isEmpty()) {
+
+        if (request.getAccountNonLocked() != null) {
+            user.setAccountNonLocked(request.getAccountNonLocked());
+        }
+
+        // Update password if provided
+        if (request.getPassword() != null && !request.getPassword().trim().isEmpty()) {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
         }
 
-        User savedUser = userRepository.save(user);
-        log.info("User updated successfully with ID: {}", userId);
+        // Update roles if provided
+        if (request.getRoleNames() != null) {
+            Set<Role> roles = new HashSet<>();
+            for (String roleName : request.getRoleNames()) {
+                Role role = roleRepository.findByName(roleName)
+                        .orElseThrow(() -> new RuntimeException("Role not found: " + roleName));
+                roles.add(role);
+            }
+            user.setRoles(roles);
+        }
 
-        return userMapper.toUserResponse(savedUser);
+        user = userRepository.save(user);
+        log.info("User updated successfully: {}", user.getUsername());
+
+        return convertToUserResponse(user);
     }
 
     /**
-     * Delete user by ID
+     * Delete user
      */
     @Transactional
-    public void deleteUser(Long userId) {
-        log.debug("Deleting user with ID: {}", userId);
+    public void deleteUser(Long id) {
+        log.info("Deleting user with ID: {}", id);
 
-        User user = userRepository.findById(userId.toString())
-                .orElseThrow(() -> new UserNotFoundException("User not found with ID: " + userId));
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new UserNotFoundException("User not found with ID: " + id));
 
         userRepository.delete(user);
-        log.info("User deleted successfully with ID: {}", userId);
+        log.info("User deleted successfully: {}", user.getUsername());
     }
 
     /**
-     * Update user status (enable/disable)
+     * Enable/Disable user
      */
     @Transactional
-    public UserResponse updateUserStatus(Long userId, boolean enabled) {
-        log.debug("Updating user status for ID: {} to {}", userId, enabled);
+    public UserResponse toggleUserStatus(Long id, boolean enabled) {
+        log.info("Toggling user status for ID: {} to enabled: {}", id, enabled);
 
-        User user = userRepository.findById(userId.toString())
-                .orElseThrow(() -> new UserNotFoundException("User not found with ID: " + userId));
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new UserNotFoundException("User not found with ID: " + id));
 
         user.setEnabled(enabled);
-        User savedUser = userRepository.save(user);
+        user = userRepository.save(user);
 
-        log.info("User status updated successfully for ID: {} to {}", userId, enabled);
-        return userMapper.toUserResponse(savedUser);
+        log.info("User status updated successfully: {} - enabled: {}", user.getUsername(), enabled);
+        return convertToUserResponse(user);
     }
 
     /**
-     * Assign roles to user
+     * Lock/Unlock user account
      */
     @Transactional
-    public UserResponse assignRolesToUser(Long userId, List<Long> roleIds) {
-        log.debug("Assigning roles {} to user with ID: {}", roleIds, userId);
+    public UserResponse toggleUserLock(Long id, boolean locked) {
+        log.info("Toggling user lock status for ID: {} to locked: {}", id, locked);
 
-        User user = userRepository.findById(userId.toString())
-                .orElseThrow(() -> new UserNotFoundException("User not found with ID: " + userId));
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new UserNotFoundException("User not found with ID: " + id));
 
-        Set<Role> roles = roleIds.stream()
-                .map(roleId -> roleRepository.findById(roleId)
-                        .orElseThrow(() -> new UserNotFoundException("Role not found with ID: " + roleId)))
-                .collect(Collectors.toSet());
+        user.setAccountNonLocked(!locked);
+        user = userRepository.save(user);
 
-        user.setRoles(roles);
-        User savedUser = userRepository.save(user);
-
-        log.info("Roles assigned successfully to user with ID: {}", userId);
-        return userMapper.toUserResponse(savedUser);
+        log.info("User lock status updated successfully: {} - locked: {}", user.getUsername(), locked);
+        return convertToUserResponse(user);
     }
 
     /**
-     * Get user statistics
+     * Search users by various criteria
      */
-    public Object getUserStatistics() {
-        log.debug("Getting user statistics");
+    public List<UserResponse> searchUsers(String searchTerm) {
+        log.info("Searching users with term: {}", searchTerm);
 
-        long totalUsers = userRepository.count();
-        long enabledUsers = userRepository.countByEnabled(true);
-        long disabledUsers = userRepository.countByEnabled(false);
+        List<User> users = userRepository.findAll().stream()
+                .filter(user ->
+                        user.getUsername().toLowerCase().contains(searchTerm.toLowerCase()) ||
+                                user.getEmail().toLowerCase().contains(searchTerm.toLowerCase()) ||
+                                user.getFirstName().toLowerCase().contains(searchTerm.toLowerCase()) ||
+                                user.getLastName().toLowerCase().contains(searchTerm.toLowerCase())
+                )
+                .toList();
 
-        // Get users created in the last 30 days
-        LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
-        long recentUsers = userRepository.countByCreatedAtAfter(thirtyDaysAgo);
+        return users.stream()
+                .map(this::convertToUserResponse)
+                .toList();
+    }
 
-        // Get role distribution
-        Map<String, Long> roleDistribution = new HashMap<>();
-        roleRepository.findAll().forEach(role -> {
-            long userCount = userRepository.countByRolesContaining(role);
-            roleDistribution.put(role.getName(), userCount);
-        });
-
-        Map<String, Object> statistics = new HashMap<>();
-        statistics.put("totalUsers", totalUsers);
-        statistics.put("enabledUsers", enabledUsers);
-        statistics.put("disabledUsers", disabledUsers);
-        statistics.put("recentUsers", recentUsers);
-        statistics.put("roleDistribution", roleDistribution);
-        statistics.put("timestamp", LocalDateTime.now());
-
-        log.info("User statistics retrieved successfully");
-        return statistics;
+    /**
+     * Convert User entity to UserResponse DTO
+     */
+    private UserResponse convertToUserResponse(User user) {
+        return UserResponse.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .fullName(user.getFullName())
+                .enabled(user.getEnabled())
+                .accountNonExpired(user.getAccountNonExpired())
+                .accountNonLocked(user.getAccountNonLocked())
+                .credentialsNonExpired(user.getCredentialsNonExpired())
+                .createdAt(user.getCreatedAt())
+                .updatedAt(user.getUpdatedAt())
+                .lastLogin(user.getLastLogin())
+                .roles(user.getRoles().stream()
+                        .map(role -> UserResponse.RoleInfo.builder()
+                                .id(role.getId())
+                                .name(role.getName())
+                                .description(role.getDescription())
+                                .build())
+                        .toList())
+                .build();
     }
 }
