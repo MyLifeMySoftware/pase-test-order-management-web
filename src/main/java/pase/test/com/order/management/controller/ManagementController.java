@@ -20,7 +20,7 @@ import pase.test.com.database.dto.ApiResponse;
 public class ManagementController {
 
     /**
-     * Health check endpoint (public)
+     * Health check endpoint (public).
      */
     @GetMapping("/health")
     public ResponseEntity<ApiResponse<String>> health() {
@@ -28,7 +28,7 @@ public class ManagementController {
     }
 
     /**
-     * Management dashboard endpoint
+     * Management dashboard endpoint.
      */
     @GetMapping("/dashboard")
     @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR')")
@@ -47,7 +47,7 @@ public class ManagementController {
     }
 
     /**
-     * System information endpoint
+     * System information endpoint.
      */
     @GetMapping("/system/info")
     @PreAuthorize("hasRole('ADMIN')")
@@ -66,7 +66,7 @@ public class ManagementController {
     }
 
     /**
-     * Test authentication endpoint
+     * Test authentication endpoint.
      */
     @GetMapping("/test/auth")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN') or hasRole('MODERATOR')")

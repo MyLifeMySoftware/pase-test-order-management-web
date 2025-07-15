@@ -33,133 +33,107 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
 
         String path = request.getRequestURI();
-        log.debug("Processing request: {} {}", request.getMethod(), path);
 
-        // Check if this request should skip JWT validation
-        if (shouldNotFilter(request)) {
-            log.debug("Skipping JWT authentication for: {}", path);
+        // Skip JWT validation for public endpoints
+        if (isPublicEndpoint(path) || "OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            log.debug("Public endpoint: {}", path);
             filterChain.doFilter(request, response);
             return;
         }
 
         final String authHeader = request.getHeader("Authorization");
 
-        // If no Authorization header, continue without authentication
         if (!StringUtils.hasText(authHeader) || !authHeader.startsWith("Bearer ")) {
-            log.debug("No valid Authorization header found for: {}", path);
+            log.debug("No valid Authorization header for: {}", path);
             filterChain.doFilter(request, response);
             return;
         }
 
         try {
-            // Extract JWT token
-            final String jwt = authHeader.substring(7);
-            log.debug("Extracted JWT token (length: {})", jwt.length());
+            // Extract and clean JWT token
+            final String jwt = authHeader.substring(7).trim(); // Remove "Bearer " and trim whitespace
 
-            // Validate token structure first
+            log.debug("Processing JWT for path: {}, token length: {}", path, jwt.length());
+
             if (!jwtService.validateTokenStructure(jwt)) {
-                log.debug("Invalid JWT token structure");
+                log.debug("❌ Invalid JWT token structure");
                 filterChain.doFilter(request, response);
                 return;
             }
 
-            // Check if it's an access token and is valid
             if (!jwtService.isAccessToken(jwt)) {
-                log.debug("Token is not an access token");
+                log.debug("❌ Token is not an access token");
                 filterChain.doFilter(request, response);
                 return;
             }
 
             if (!jwtService.isTokenValid(jwt)) {
-                log.debug("Token is not valid (expired or malformed)");
+                log.debug("❌ Token is not valid (expired or malformed)");
                 filterChain.doFilter(request, response);
                 return;
             }
 
-            // Extract username from token
             final String username = jwtService.extractUsername(jwt);
-            log.debug("Extracted username from JWT: {}", username);
 
-            // Check if user is not already authenticated
+            // CRITICAL: Check if already authenticated to avoid re-processing
             if (StringUtils.hasText(username) && SecurityContextHolder.getContext().getAuthentication() == null) {
 
-                // Extract authorities from token
+                // Extract authorities from JWT
                 List<String> tokenAuthorities = jwtService.extractAuthorities(jwt);
                 if (tokenAuthorities == null) {
-                    tokenAuthorities = List.of(); // Fallback to empty list
+                    tokenAuthorities = List.of();
                 }
 
                 List<SimpleGrantedAuthority> authorities = tokenAuthorities.stream()
                         .map(SimpleGrantedAuthority::new)
                         .toList();
 
-                log.debug("Extracted authorities: {}", authorities);
-
                 // Create authentication token
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                        username,
-                        null,
-                        authorities
-                );
+                        username, null, authorities);
 
-                // Set authentication details
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-                // Set authentication in security context
+                // CRITICAL: Set authentication in context
                 SecurityContextHolder.getContext().setAuthentication(authToken);
 
-                log.debug("User {} authenticated successfully via JWT with authorities: {}",
-                        username, authorities);
+                log.debug("User {} authenticated with authorities: {}", username, authorities);
+                log.debug("SecurityContext set for request: {}", path);
+            } else if (SecurityContextHolder.getContext().getAuthentication() != null) {
+                log.debug("User already authenticated: {}",
+                        SecurityContextHolder.getContext().getAuthentication().getName());
             }
+
         } catch (JwtException e) {
-            log.error("JWT token validation failed: {}", e.getMessage());
+            log.error("JWT validation failed: {}", e.getMessage());
             SecurityContextHolder.clearContext();
         } catch (Exception e) {
-            log.error("Error processing JWT token: {}", e.getMessage(), e);
+            log.error("Error processing JWT: {}", e.getMessage());
             SecurityContextHolder.clearContext();
         }
 
         filterChain.doFilter(request, response);
     }
 
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
-        String path = request.getRequestURI();
-        String method = request.getMethod();
-
-        // Always allow OPTIONS requests (CORS preflight)
-        if ("OPTIONS".equalsIgnoreCase(method)) {
-            return true;
-        }
-
-        // Skip JWT validation for these public endpoints
-        boolean isPublicEndpoint =
-                // Health checks
+    private boolean isPublicEndpoint(String path) {
+        boolean isPublic = path.equals("/") ||
+                path.equals("/favicon.ico") ||
+                path.startsWith("/error") ||
+                path.startsWith("/swagger-ui") ||
+                path.startsWith("/v3/api-docs") ||
+                path.startsWith("/swagger-resources") ||
+                path.startsWith("/webjars") ||
+                path.startsWith("/actuator") ||
                 path.equals("/api/v1/management/health") ||
-                        path.equals("/api/v1/orders/health") ||
+                path.equals("/api/v1/orders/health") ||
+                path.startsWith("/api/v1/test/");
 
-                        // Swagger UI and API docs
-                        path.startsWith("/swagger-ui") ||
-                        path.equals("/swagger-ui.html") ||
-                        path.startsWith("/v3/api-docs") ||
-                        path.startsWith("/swagger-resources") ||
-                        path.startsWith("/webjars") ||
-
-                        // Actuator
-                        path.startsWith("/actuator") ||
-
-                        // Static resources
-                        path.equals("/favicon.ico") ||
-                        path.equals("/") ||
-                        path.equals("/index.html") ||
-                        path.startsWith("/error");
-
-        if (isPublicEndpoint) {
-            log.debug("Public endpoint, skipping JWT validation: {}", path);
+        if (isPublic) {
+            log.debug("Public endpoint detected: {}", path);
         } else {
-            log.debug("Protected endpoint, JWT validation required: {}", path);
+            log.debug("Protected endpoint detected: {}", path);
         }
 
-        return isPublicEndpoint;
+        return isPublic;
     }
 }
