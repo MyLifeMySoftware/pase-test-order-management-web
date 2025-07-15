@@ -23,21 +23,21 @@ public class JwtService {
     private String issuer;
 
     /**
-     * Extract username from token
+     * Extract username from token.
      */
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
     }
 
     /**
-     * Extract expiration date from token
+     * Extract expiration date from token.
      */
     public Date extractExpiration(String token) {
         return extractClaim(token, Claims::getExpiration);
     }
 
     /**
-     * Extract authorities from token
+     * Extract authorities from token.
      */
     @SuppressWarnings("unchecked")
     public List<String> extractAuthorities(String token) {
@@ -45,7 +45,7 @@ public class JwtService {
     }
 
     /**
-     * Extract roles from token
+     * Extract roles from token.
      */
     @SuppressWarnings("unchecked")
     public List<String> extractRoles(String token) {
@@ -53,7 +53,7 @@ public class JwtService {
     }
 
     /**
-     * Extract permissions from token
+     * Extract permissions from token.
      */
     @SuppressWarnings("unchecked")
     public List<String> extractPermissions(String token) {
@@ -61,21 +61,21 @@ public class JwtService {
     }
 
     /**
-     * Extract token type
+     * Extract token type.
      */
     public String extractTokenType(String token) {
         return extractClaim(token, claims -> (String) claims.get("type"));
     }
 
     /**
-     * Extract issuer from token
+     * Extract issuer from token.
      */
     public String extractIssuer(String token) {
         return extractClaim(token, Claims::getIssuer);
     }
 
     /**
-     * Extract claim from token
+     * Extract claim from token.
      */
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
         final Claims claims = extractAllClaims(token);
@@ -83,7 +83,7 @@ public class JwtService {
     }
 
     /**
-     * Extract all claims from token
+     * Extract all claims from token.
      */
     private Claims extractAllClaims(String token) {
         try {
@@ -99,7 +99,7 @@ public class JwtService {
     }
 
     /**
-     * Check if token is valid (not expired and from correct issuer)
+     * Check if token is valid (not expired and from correct issuer).
      */
     public boolean isTokenValid(String token) {
         try {
@@ -131,7 +131,7 @@ public class JwtService {
     }
 
     /**
-     * Check if token is expired
+     * Check if token is expired.
      */
     public boolean isTokenExpired(String token) {
         try {
@@ -143,7 +143,7 @@ public class JwtService {
     }
 
     /**
-     * Check if token is access token
+     * Check if token is access token.
      */
     public boolean isAccessToken(String token) {
         try {
@@ -155,7 +155,7 @@ public class JwtService {
     }
 
     /**
-     * Get signing key
+     * Get signing key.
      */
     private SecretKey getSigningKey() {
         byte[] keyBytes = secretKey.getBytes();
@@ -163,7 +163,7 @@ public class JwtService {
     }
 
     /**
-     * Validate token format and structure
+     * Validate token format and structure.
      */
     public boolean validateTokenStructure(String token) {
         try {
