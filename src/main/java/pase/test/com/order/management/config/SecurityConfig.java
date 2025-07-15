@@ -12,6 +12,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -30,69 +31,77 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        log.info("Configuring security filter chain for Management Service...");
+        log.info("🔧 Configuring JWT-ONLY Security for Management Service...");
 
-        http
-                // Disable CSRF since we're using JWT
+        return http
+                // ===== DISABLE ALL DEFAULT AUTHENTICATION MECHANISMS =====
                 .csrf(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)  // 🚫 NO FORM LOGIN
+                .logout(AbstractHttpConfigurer::disable)
+                .rememberMe(AbstractHttpConfigurer::disable)
+                .anonymous(AbstractHttpConfigurer::disable)  // 🚫 NO ANONYMOUS
 
-                // Configure CORS
+                // ===== CORS CONFIGURATION =====
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
-                // Stateless session management (no sessions)
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-                // Disable default authentication mechanisms
-                .httpBasic(AbstractHttpConfigurer::disable)
-                .formLogin(AbstractHttpConfigurer::disable)
-                .logout(AbstractHttpConfigurer::disable)
-
-                // Custom authentication entry point for JWT
-                .exceptionHandling(exception -> exception.authenticationEntryPoint(jwtAuthenticationEntryPoint))
-
-                // Configure URL authorization
-                .authorizeHttpRequests(authz -> {
-                    log.info("Configuring authorization rules for Management Service...");
-                    authz
-                            // Public endpoints
-                            .requestMatchers(
-                                    "/api/v1/management/health"
-                            ).permitAll()
-
-                            // Swagger and OpenAPI docs - ALLOW ALL
-                            .requestMatchers(
-                                    "/swagger-ui/**",
-                                    "/swagger-ui.html",
-                                    "/v3/api-docs/**",
-                                    "/swagger-resources/**",
-                                    "/webjars/**"
-                            ).permitAll()
-
-                            // Actuator endpoints
-                            .requestMatchers("/actuator/**").permitAll()
-
-                            // Static resources
-                            .requestMatchers("/favicon.ico", "/error").permitAll()
-
-                            // OPTIONS for CORS preflight
-                            .requestMatchers("OPTIONS").permitAll()
-
-                            // All management endpoints require authentication via JWT
-                            .requestMatchers("/api/v1/management/**").authenticated()
-
-                            // All other requests require authentication
-                            .anyRequest().authenticated();
+                // ===== STATELESS SESSION MANAGEMENT =====
+                .sessionManagement(session -> {
+                    session.sessionCreationPolicy(SessionCreationPolicy.STATELESS);
+                    session.sessionFixation().none();  // No session fixation protection needed
+                    session.maximumSessions(0);  // No concurrent sessions
                 })
 
-                // Add JWT filter before UsernamePasswordAuthenticationFilter
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                // ===== EXCEPTION HANDLING - NO REDIRECTS =====
+                .exceptionHandling(exception -> {
+                    exception.authenticationEntryPoint(jwtAuthenticationEntryPoint);
+                    exception.accessDeniedHandler((request, response, accessDeniedException) -> {
+                        log.debug("Access denied for: {} - {}", request.getRequestURI(), accessDeniedException.getMessage());
+                        response.setStatus(403);
+                        response.setContentType("application/json");
+                        response.getWriter().write("{\"error\":\"Access Denied\",\"message\":\"Insufficient permissions\"}");
+                    });
+                })
 
-        log.info("Security filter chain configured successfully for Management Service");
-        return http.build();
+                // ===== URL AUTHORIZATION - VERY EXPLICIT =====
+                .authorizeHttpRequests(authz -> {
+                    log.info("🔐 Configuring URL authorization rules...");
+
+                    authz
+                            // 🟢 COMPLETELY PUBLIC - NO AUTH REQUIRED
+                            .requestMatchers(
+                                    new AntPathRequestMatcher("/swagger-ui/**"),
+                                    new AntPathRequestMatcher("/swagger-ui.html"),
+                                    new AntPathRequestMatcher("/v3/api-docs/**"),
+                                    new AntPathRequestMatcher("/swagger-resources/**"),
+                                    new AntPathRequestMatcher("/webjars/**"),
+                                    new AntPathRequestMatcher("/api/v1/management/health"),
+                                    new AntPathRequestMatcher("/api/v1/orders/health"),
+                                    new AntPathRequestMatcher("/actuator/**"),
+                                    new AntPathRequestMatcher("/favicon.ico"),
+                                    new AntPathRequestMatcher("/error"),
+                                    new AntPathRequestMatcher("/")
+                            ).permitAll()
+
+                            // 🔒 PROTECTED ENDPOINTS - JWT REQUIRED
+                            .requestMatchers(
+                                    new AntPathRequestMatcher("/api/v1/management/**"),
+                                    new AntPathRequestMatcher("/api/v1/orders/**")
+                            ).authenticated()
+
+                            // 🟡 FALLBACK - DENY BY DEFAULT (safer)
+                            .anyRequest().denyAll();
+                })
+
+                // ===== ADD JWT FILTER =====
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+
+                .build();
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+        log.info("🌐 Configuring CORS...");
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOriginPatterns(List.of("*"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
