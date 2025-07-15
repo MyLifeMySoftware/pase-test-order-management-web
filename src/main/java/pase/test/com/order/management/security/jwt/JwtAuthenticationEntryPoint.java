@@ -27,7 +27,7 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
             AuthenticationException authException
     ) throws IOException, ServletException {
 
-        log.error("Unauthorized error in Order Management service: {}", authException.getMessage());
+        log.error("Unauthorized error: {}", authException.getMessage());
 
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -35,7 +35,7 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
         ErrorResponse errorResponse = ErrorResponse.of(
                 HttpServletResponse.SC_UNAUTHORIZED,
                 "Unauthorized",
-                "Full authentication is required to access this resource. Please provide a valid JWT token.",
+                "Valid JWT token is required to access this management resource",
                 request.getRequestURI()
         );
 

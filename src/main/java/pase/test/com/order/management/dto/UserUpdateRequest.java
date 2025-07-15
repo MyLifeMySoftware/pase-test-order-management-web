@@ -3,12 +3,15 @@ package pase.test.com.order.management.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 @Builder
+@NoArgsConstructor
 @AllArgsConstructor
 public class UserUpdateRequest {
 
@@ -28,4 +31,10 @@ public class UserUpdateRequest {
     @Size(min = 2, max = 50, message = "Last name must be between 2 and 50 characters")
     @Pattern(regexp = "^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]+$", message = "Last name can only contain letters and spaces")
     private String lastName;
+
+    private Boolean enabled;
+
+    private Boolean accountNonLocked;
+
+    private Set<String> roleNames;
 }

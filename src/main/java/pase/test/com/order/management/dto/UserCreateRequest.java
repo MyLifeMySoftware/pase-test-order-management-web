@@ -2,7 +2,6 @@ package pase.test.com.order.management.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.Set;
@@ -43,9 +42,7 @@ public class UserCreateRequest {
     @Pattern(regexp = "^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]+$", message = "Last name can only contain letters and spaces")
     private String lastName;
 
-    @NotEmpty(message = "At least one role is required")
-    private Set<Long> roleIds;
+    private Boolean enabled = true;
 
-    @Builder.Default
-    private boolean enabled = true;
+    private Set<String> roleNames;
 }
