@@ -33,7 +33,7 @@ import pase.test.com.database.dto.ApiResponse;
 public class OrderController {
 
     /**
-     * Health check endpoint - Public
+     * Health check endpoint - Public.
      */
     @GetMapping("/health")
     @Operation(summary = "Health check", description = "Check if the order management service is running")
@@ -42,7 +42,7 @@ public class OrderController {
     }
 
     /**
-     * Get user's own orders - Available to all authenticated users
+     * Get user's own orders - Available to all authenticated users.
      */
     @GetMapping("/my-orders")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN') or hasRole('MODERATOR')")
@@ -62,8 +62,10 @@ public class OrderController {
         Object mockOrders = Map.of(
                 "username", currentUsername,
                 "orders", List.of(
-                        Map.of("id", 1, "product", "Sample Product 1", "amount", 100.00, "status", "PENDING"),
-                        Map.of("id", 2, "product", "Sample Product 2", "amount", 250.50, "status", "COMPLETED")
+                        Map.of("id", 1, "product", "Sample Product 1",
+                                "amount", 100.00, "status", "PENDING"),
+                        Map.of("id", 2, "product", "Sample Product 2",
+                                "amount", 250.50, "status", "COMPLETED")
                 ),
                 "authorities", auth.getAuthorities(),
                 "page", page,
@@ -74,7 +76,7 @@ public class OrderController {
     }
 
     /**
-     * Create new order - Available to all authenticated users
+     * Create new order - Available to all authenticated users.
      */
     @PostMapping("/create")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN') or hasRole('MODERATOR')")
@@ -173,9 +175,12 @@ public class OrderController {
                 "requestedBy", auth.getName(),
                 "totalOrders", 156,
                 "orders", List.of(
-                        Map.of("id", 1, "username", "user1", "product", "Product A", "amount", 100.00),
-                        Map.of("id", 2, "username", "user2", "product", "Product B", "amount", 250.50),
-                        Map.of("id", 3, "username", "user3", "product", "Product C", "amount", 75.25)
+                        Map.of("id", 1, "username", "user1", "product",
+                                "Product A", "amount", 100.00),
+                        Map.of("id", 2, "username", "user2", "product",
+                                "Product B", "amount", 250.50),
+                        Map.of("id", 3, "username", "user3", "product",
+                                "Product C", "amount", 75.25)
                 ),
                 "page", page,
                 "size", size
@@ -201,7 +206,8 @@ public class OrderController {
                 "query", query,
                 "searchBy", auth.getName(),
                 "results", List.of(
-                        Map.of("id", 5, "username", "user5", "product", "Product containing: " + query, "amount", 99.99)
+                        Map.of("id", 5, "username", "user5", "product",
+                                "Product containing: " + query, "amount", 99.99)
                 )
         );
 
