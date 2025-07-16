@@ -13,22 +13,6 @@ services:
     networks:
       - backend
 
-  spring-app:
-    build: .
-    container_name: spring-service
-    depends_on:
-      - postgres-db
-    ports:
-      - "8100:8100"
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/pase_db
-      SPRING_DATASOURCE_USERNAME: owner
-      SPRING_DATASOURCE_PASSWORD: Owner123
-      SPRING_JPA_HIBERNATE_DDL_AUTO: update
-      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
-    networks:
-      - backend
-
 volumes:
   pgdata:
 
