@@ -34,99 +34,121 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String path = request.getRequestURI();
 
-        // Skip JWT validation for public endpoints
-        if (isPublicEndpoint(path) || "OPTIONS".equalsIgnoreCase(request.getMethod())) {
-            log.debug("Public endpoint: {}", path);
+        // Skip for public endpoints
+        if (shouldNotFilter(request)) {
             filterChain.doFilter(request, response);
             return;
         }
 
+        // Extract Authorization header
         final String authHeader = request.getHeader("Authorization");
 
-        if (!StringUtils.hasText(authHeader) || !authHeader.startsWith("Bearer ")) {
-            log.debug("No valid Authorization header for: {}", path);
+        if (!StringUtils.hasText(authHeader)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        if (!authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
 
         try {
-            // Extract and clean JWT token
-            final String jwt = authHeader.substring(7).trim(); // Remove "Bearer " and trim whitespace
+            // Extract JWT token
+            final String jwt = authHeader.substring(7).trim();
 
-            log.debug("Processing JWT for path: {}, token length: {}", path, jwt.length());
+            if (jwt.isEmpty()) {
+                filterChain.doFilter(request, response);
+                return;
+            }
 
+            // Validate token structure
             if (!jwtService.validateTokenStructure(jwt)) {
-                log.debug("❌ Invalid JWT token structure");
                 filterChain.doFilter(request, response);
                 return;
             }
 
+            // Check if it's an access token
             if (!jwtService.isAccessToken(jwt)) {
-                log.debug("❌ Token is not an access token");
                 filterChain.doFilter(request, response);
                 return;
             }
 
+            // Validate token (expiration, issuer, etc.)
             if (!jwtService.isTokenValid(jwt)) {
-                log.debug("❌ Token is not valid (expired or malformed)");
                 filterChain.doFilter(request, response);
                 return;
             }
 
+            // Extract username
             final String username = jwtService.extractUsername(jwt);
 
-            // CRITICAL: Check if already authenticated to avoid re-processing
-            if (StringUtils.hasText(username) && SecurityContextHolder.getContext().getAuthentication() == null) {
-
-                // Extract authorities from JWT
-                List<String> tokenAuthorities = jwtService.extractAuthorities(jwt);
-                if (tokenAuthorities == null) {
-                    tokenAuthorities = List.of();
-                }
-
-                List<SimpleGrantedAuthority> authorities = tokenAuthorities.stream()
-                        .map(SimpleGrantedAuthority::new)
-                        .toList();
-
-                // Create authentication token
-                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                        username, null, authorities);
-
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
-                // CRITICAL: Set authentication in context
-                SecurityContextHolder.getContext().setAuthentication(authToken);
-
-                log.debug("User {} authenticated with authorities: {}", username, authorities);
-                log.debug("SecurityContext set for request: {}", path);
-            } else if (SecurityContextHolder.getContext().getAuthentication() != null) {
-                log.debug("User already authenticated: {}",
-                        SecurityContextHolder.getContext().getAuthentication().getName());
+            if (!StringUtils.hasText(username)) {
+                filterChain.doFilter(request, response);
+                return;
             }
 
+            // Check if already authenticated (avoid re-processing)
+            if (SecurityContextHolder.getContext().getAuthentication() != null) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            // Extract authorities
+            List<String> tokenAuthorities = jwtService.extractAuthorities(jwt);
+            if (tokenAuthorities == null) {
+                tokenAuthorities = List.of();
+            }
+
+            List<SimpleGrantedAuthority> authorities = tokenAuthorities.stream()
+                    .map(SimpleGrantedAuthority::new)
+                    .toList();
+
+            // Create authentication token
+            UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                    username, null, authorities);
+
+            // Set authentication details
+            authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+            // Set authentication in security context
+            SecurityContextHolder.getContext().setAuthentication(authToken);
+
         } catch (JwtException e) {
-            log.error("JWT validation failed: {}", e.getMessage());
+
             SecurityContextHolder.clearContext();
+
         } catch (Exception e) {
-            log.error("Error processing JWT: {}", e.getMessage());
+            log.error("Unexpected error processing JWT for {}: {}", path, e.getMessage(), e);
             SecurityContextHolder.clearContext();
         }
 
         filterChain.doFilter(request, response);
     }
 
-    private boolean isPublicEndpoint(String path) {
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+        String path = request.getRequestURI();
+        String method = request.getMethod();
+
+        // Always allow OPTIONS requests (CORS preflight)
+        if ("OPTIONS".equalsIgnoreCase(method)) {
+            return true;
+        }
+
+        // Public endpoints that don't need JWT validation
         boolean isPublic = path.equals("/") ||
                 path.equals("/favicon.ico") ||
                 path.startsWith("/error") ||
                 path.startsWith("/swagger-ui") ||
+                path.equals("/swagger-ui.html") ||
                 path.startsWith("/v3/api-docs") ||
                 path.startsWith("/swagger-resources") ||
                 path.startsWith("/webjars") ||
                 path.startsWith("/actuator") ||
                 path.equals("/api/v1/management/health") ||
                 path.equals("/api/v1/orders/health") ||
-                path.startsWith("/api/v1/test/");
+                path.startsWith("/api/v1/test/public");
 
         if (isPublic) {
             log.debug("Public endpoint detected: {}", path);
