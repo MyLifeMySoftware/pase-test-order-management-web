@@ -21,26 +21,32 @@ public class SwaggerConfig {
                 .info(new Info()
                         .title("Pase Management Service API")
                         .description("""
-                            🔐 **User and System Management Service for Pase Project**
+                            User and Order Management Service for Pase Project
                             
-                            **How to test JWT authentication:**
+                            **Features:**
+                            - User Management (CRUD operations)
+                            - Driver Management (Registration and status control)
+                            - Order Management (Complete lifecycle)
+                            - File Attachments (PDF and Images)
+                            - Role-based Access Control
                             
-                            **Step 1: Get JWT Token from Auth Service**
-                            1. Open Auth Service: http://localhost:8080/swagger-ui.html
-                            2. Use `/api/v1/auth/login` endpoint
-                            3. Login with test credentials:
-                               - **admin** / **Admin123!** (ADMIN role)
-                               - **testuser** / **Test123!** (USER role)
-                               - **moderator** / **Mod123!** (MODERATOR role)
-                            4. Copy the `accessToken` from the response
+                            **How to use:**
+                            1. Get JWT token from Auth Service (http://localhost:8080/swagger-ui.html)
+                            2. Login with: admin/Admin123!, testuser/Test123!, or moderator/Mod123!
+                            3. Copy the accessToken and click 'Authorize' below
+                            4. Enter: Bearer YOUR_ACCESS_TOKEN
+                            5. Test the endpoints
                             
-                            **Step 2: Use Token in Management Service**
-                            1. Click the "Authorize" button below 🔒
-                            2. Enter: `YOUR_ACCESS_TOKEN_HERE`
-                            3. Click "Authorize"
-                            4. Now you can test protected endpoints!
-                           
-                            **Token expires in 15 minutes** - get a new one if needed!
+                            **Order Management Workflow:**
+                            1. Create Order (status: CREATED)
+                            2. Assign Driver (status: ASSIGNED)
+                            3. Add Attachments (PDF/Images)
+                            4. Update Status (IN_PROGRESS → COMPLETED)
+                            
+                            **Available Roles:**
+                            - USER: View orders, drivers
+                            - MODERATOR: Create/assign orders, manage drivers
+                            - ADMIN: Full access to all operations
                             """)
                         .version("v1.0.0")
                         .contact(new Contact()
