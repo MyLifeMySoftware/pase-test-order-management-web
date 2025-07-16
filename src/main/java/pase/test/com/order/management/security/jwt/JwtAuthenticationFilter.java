@@ -137,18 +137,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         // Public endpoints that don't need JWT validation
-        boolean isPublic = path.equals("/") ||
-                path.equals("/favicon.ico") ||
-                path.startsWith("/error") ||
-                path.startsWith("/swagger-ui") ||
-                path.equals("/swagger-ui.html") ||
-                path.startsWith("/v3/api-docs") ||
-                path.startsWith("/swagger-resources") ||
-                path.startsWith("/webjars") ||
-                path.startsWith("/actuator") ||
-                path.equals("/api/v1/management/health") ||
-                path.equals("/api/v1/orders/health") ||
-                path.startsWith("/api/v1/test/public");
+        boolean isPublic = path.equals("/")
+                || path.equals("/favicon.ico")
+                || path.startsWith("/error")
+                || path.startsWith("/swagger-ui")
+                || path.equals("/swagger-ui.html")
+                || path.startsWith("/v3/api-docs")
+                || path.startsWith("/swagger-resources")
+                || path.startsWith("/webjars")
+                || path.startsWith("/actuator")
+                || path.equals("/api/v1/management/health")
+                || path.equals("/api/v1/orders/health")
+                || path.startsWith("/api/v1/test/public");
 
         if (isPublic) {
             log.debug("Public endpoint detected: {}", path);

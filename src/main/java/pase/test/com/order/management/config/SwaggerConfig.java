@@ -59,10 +59,10 @@ public class SwaggerConfig {
                 .addSecurityItem(new SecurityRequirement()
                         .addList("Bearer Authentication"))
                 .components(new Components()
-                        .addSecuritySchemes("Bearer Authentication", createJWTScheme()));
+                        .addSecuritySchemes("Bearer Authentication", createJwtScheme()));
     }
 
-    private SecurityScheme createJWTScheme() {
+    private SecurityScheme createJwtScheme() {
         return new SecurityScheme()
                 .type(SecurityScheme.Type.HTTP)
                 .bearerFormat("JWT")

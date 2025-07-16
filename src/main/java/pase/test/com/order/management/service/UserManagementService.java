@@ -1,7 +1,6 @@
 package pase.test.com.order.management.service;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +17,6 @@ import pase.test.com.database.repository.user.RoleRepository;
 import pase.test.com.database.repository.user.UserRepository;
 import pase.test.com.order.management.dto.UserCreateRequest;
 import pase.test.com.order.management.dto.UserResponse;
-import pase.test.com.order.management.dto.UserUpdateRequest;
 
 @Slf4j
 @Service
@@ -30,7 +28,7 @@ public class UserManagementService {
     private final PasswordEncoder passwordEncoder;
 
     /**
-     * Get all users with pagination
+     * Get all users with pagination.
      */
     public Page<UserResponse> getAllUsers(Pageable pageable) {
         log.info("Fetching all users with pagination: {}", pageable);
@@ -39,7 +37,7 @@ public class UserManagementService {
     }
 
     /**
-     * Get user by ID
+     * Get user by ID.
      */
     public UserResponse getUserById(Long id) {
         log.info("Fetching user by ID: {}", id);
@@ -49,17 +47,7 @@ public class UserManagementService {
     }
 
     /**
-     * Get user by username
-     */
-    public UserResponse getUserByUsername(String username) {
-        log.info("Fetching user by username: {}", username);
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UserNotFoundException("User not found with username: " + username));
-        return convertToUserResponse(user);
-    }
-
-    /**
-     * Create new user
+     * Create new user.
      */
     @Transactional
     public UserResponse createUser(UserCreateRequest request) {
@@ -110,131 +98,7 @@ public class UserManagementService {
     }
 
     /**
-     * Update user
-     */
-    @Transactional
-    public UserResponse updateUser(Long id, UserUpdateRequest request) {
-        log.info("Updating user with ID: {}", id);
-
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new UserNotFoundException("User not found with ID: " + id));
-
-        // Update fields
-        if (request.getEmail() != null && !request.getEmail().equals(user.getEmail())) {
-            if (userRepository.existsByEmail(request.getEmail())) {
-                throw new UserAlreadyExistsException("Email already exists: " + request.getEmail());
-            }
-            user.setEmail(request.getEmail());
-        }
-
-        if (request.getFirstName() != null) {
-            user.setFirstName(request.getFirstName());
-        }
-
-        if (request.getLastName() != null) {
-            user.setLastName(request.getLastName());
-        }
-
-        if (request.getEnabled() != null) {
-            user.setEnabled(request.getEnabled());
-        }
-
-        if (request.getAccountNonLocked() != null) {
-            user.setAccountNonLocked(request.getAccountNonLocked());
-        }
-
-        // Update password if provided
-        if (request.getPassword() != null && !request.getPassword().trim().isEmpty()) {
-            user.setPassword(passwordEncoder.encode(request.getPassword()));
-        }
-
-        // Update roles if provided
-        if (request.getRoleNames() != null) {
-            Set<Role> roles = new HashSet<>();
-            for (String roleName : request.getRoleNames()) {
-                Role role = roleRepository.findByName(roleName)
-                        .orElseThrow(() -> new RuntimeException("Role not found: " + roleName));
-                roles.add(role);
-            }
-            user.setRoles(roles);
-        }
-
-        user = userRepository.save(user);
-        log.info("User updated successfully: {}", user.getUsername());
-
-        return convertToUserResponse(user);
-    }
-
-    /**
-     * Delete user
-     */
-    @Transactional
-    public void deleteUser(Long id) {
-        log.info("Deleting user with ID: {}", id);
-
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new UserNotFoundException("User not found with ID: " + id));
-
-        userRepository.delete(user);
-        log.info("User deleted successfully: {}", user.getUsername());
-    }
-
-    /**
-     * Enable/Disable user
-     */
-    @Transactional
-    public UserResponse toggleUserStatus(Long id, boolean enabled) {
-        log.info("Toggling user status for ID: {} to enabled: {}", id, enabled);
-
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new UserNotFoundException("User not found with ID: " + id));
-
-        user.setEnabled(enabled);
-        user = userRepository.save(user);
-
-        log.info("User status updated successfully: {} - enabled: {}", user.getUsername(), enabled);
-        return convertToUserResponse(user);
-    }
-
-    /**
-     * Lock/Unlock user account
-     */
-    @Transactional
-    public UserResponse toggleUserLock(Long id, boolean locked) {
-        log.info("Toggling user lock status for ID: {} to locked: {}", id, locked);
-
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new UserNotFoundException("User not found with ID: " + id));
-
-        user.setAccountNonLocked(!locked);
-        user = userRepository.save(user);
-
-        log.info("User lock status updated successfully: {} - locked: {}", user.getUsername(), locked);
-        return convertToUserResponse(user);
-    }
-
-    /**
-     * Search users by various criteria
-     */
-    public List<UserResponse> searchUsers(String searchTerm) {
-        log.info("Searching users with term: {}", searchTerm);
-
-        List<User> users = userRepository.findAll().stream()
-                .filter(user ->
-                        user.getUsername().toLowerCase().contains(searchTerm.toLowerCase()) ||
-                                user.getEmail().toLowerCase().contains(searchTerm.toLowerCase()) ||
-                                user.getFirstName().toLowerCase().contains(searchTerm.toLowerCase()) ||
-                                user.getLastName().toLowerCase().contains(searchTerm.toLowerCase())
-                )
-                .toList();
-
-        return users.stream()
-                .map(this::convertToUserResponse)
-                .toList();
-    }
-
-    /**
-     * Convert User entity to UserResponse DTO
+     * Convert User entity to UserResponse DTO.
      */
     private UserResponse convertToUserResponse(User user) {
         return UserResponse.builder()

@@ -54,12 +54,13 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> {
                     ex.authenticationEntryPoint(jwtAuthenticationEntryPoint);
                     ex.accessDeniedHandler((request, response, accessDeniedException) -> {
-                        log.error("Access denied for: {} - {}", request.getRequestURI(), accessDeniedException.getMessage());
+                        log.error("Access denied for: {} - {}", request.getRequestURI(),
+                                accessDeniedException.getMessage());
                         response.setStatus(403);
                         response.setContentType("application/json");
                         response.getWriter().write(
-                                "{\"error\":\"Access Denied\",\"message\":\"Insufficient permissions\",\"path\":\"" +
-                                        request.getRequestURI() + "\"}"
+                                "{\"error\":\"Access Denied\",\"message\":\"Insufficient permissions\",\"path\":\""
+                                        + request.getRequestURI() + "\"}"
                         );
                     });
                 })
