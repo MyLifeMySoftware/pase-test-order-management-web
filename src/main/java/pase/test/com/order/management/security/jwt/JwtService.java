@@ -20,20 +20,30 @@ public class JwtService {
     private String secretKey;
 
     @Value("${jwt.issuer:pase-auth-service}")
-    private String issuer;
+    private String expectedIssuer;
 
     /**
      * Extract username from token.
      */
     public String extractUsername(String token) {
-        return extractClaim(token, Claims::getSubject);
+        try {
+            return extractClaim(token, Claims::getSubject);
+        } catch (Exception e) {
+            log.error("Error extracting username from token: {}", e.getMessage());
+            return null;
+        }
     }
 
     /**
      * Extract expiration date from token.
      */
     public Date extractExpiration(String token) {
-        return extractClaim(token, Claims::getExpiration);
+        try {
+            return extractClaim(token, Claims::getExpiration);
+        } catch (Exception e) {
+            log.error("Error extracting expiration from token: {}", e.getMessage());
+            return new Date(0); // Return past date
+        }
     }
 
     /**
@@ -41,7 +51,12 @@ public class JwtService {
      */
     @SuppressWarnings("unchecked")
     public List<String> extractAuthorities(String token) {
-        return extractClaim(token, claims -> (List<String>) claims.get("authorities"));
+        try {
+            return extractClaim(token, claims -> (List<String>) claims.get("authorities"));
+        } catch (Exception e) {
+            log.error("Error extracting authorities from token: {}", e.getMessage());
+            return List.of();
+        }
     }
 
     /**
@@ -49,7 +64,12 @@ public class JwtService {
      */
     @SuppressWarnings("unchecked")
     public List<String> extractRoles(String token) {
-        return extractClaim(token, claims -> (List<String>) claims.get("roles"));
+        try {
+            return extractClaim(token, claims -> (List<String>) claims.get("roles"));
+        } catch (Exception e) {
+            log.error("Error extracting roles from token: {}", e.getMessage());
+            return List.of();
+        }
     }
 
     /**
@@ -57,21 +77,36 @@ public class JwtService {
      */
     @SuppressWarnings("unchecked")
     public List<String> extractPermissions(String token) {
-        return extractClaim(token, claims -> (List<String>) claims.get("permissions"));
+        try {
+            return extractClaim(token, claims -> (List<String>) claims.get("permissions"));
+        } catch (Exception e) {
+            log.error("Error extracting permissions from token: {}", e.getMessage());
+            return List.of();
+        }
     }
 
     /**
      * Extract token type.
      */
     public String extractTokenType(String token) {
-        return extractClaim(token, claims -> (String) claims.get("type"));
+        try {
+            return extractClaim(token, claims -> (String) claims.get("type"));
+        } catch (Exception e) {
+            log.error("Error extracting token type: {}", e.getMessage());
+            return null;
+        }
     }
 
     /**
      * Extract issuer from token.
      */
     public String extractIssuer(String token) {
-        return extractClaim(token, Claims::getIssuer);
+        try {
+            return extractClaim(token, Claims::getIssuer);
+        } catch (Exception e) {
+            log.error("Error extracting issuer from token: {}", e.getMessage());
+            return null;
+        }
     }
 
     /**
@@ -105,27 +140,42 @@ public class JwtService {
         try {
             Claims claims = extractAllClaims(token);
 
-            // Check if token is expired
-            if (claims.getExpiration().before(new Date())) {
-                log.debug("Token is expired");
+            // Check expiration
+            Date expiration = claims.getExpiration();
+            if (expiration != null && expiration.before(new Date())) {
+                log.debug("Token is expired. Expiration: {}, Current: {}", expiration, new Date());
                 return false;
             }
 
             // Check issuer
-            if (!issuer.equals(claims.getIssuer())) {
-                log.debug("Token issuer mismatch. Expected: {}, Got: {}", issuer, claims.getIssuer());
+            String issuer = claims.getIssuer();
+            if (expectedIssuer != null && !expectedIssuer.equals(issuer)) {
+                log.debug("Token issuer mismatch. Expected: {}, Got: {}", expectedIssuer, issuer);
                 return false;
             }
 
-            // Check if it's an access token
-            if (!"ACCESS".equals(claims.get("type"))) {
-                log.debug("Token is not an access token");
+            // Check token type
+            String tokenType = (String) claims.get("type");
+            if (!"ACCESS".equals(tokenType)) {
+                log.debug("Token is not an access token. Type: {}", tokenType);
                 return false;
             }
 
+            // Check subject (username)
+            String subject = claims.getSubject();
+            if (subject == null || subject.trim().isEmpty()) {
+                log.debug("Token has no subject (username)");
+                return false;
+            }
+
+            log.debug("Token validation successful for user: {}", subject);
             return true;
+
         } catch (JwtException e) {
             log.error("Token validation failed: {}", e.getMessage());
+            return false;
+        } catch (Exception e) {
+            log.error("Unexpected error during token validation: {}", e.getMessage());
             return false;
         }
     }
@@ -135,10 +185,15 @@ public class JwtService {
      */
     public boolean isTokenExpired(String token) {
         try {
-            return extractExpiration(token).before(new Date());
-        } catch (JwtException e) {
+            Date expiration = extractExpiration(token);
+            boolean expired = expiration.before(new Date());
+            if (expired) {
+                log.debug("Token is expired. Expiration: {}, Current: {}", expiration, new Date());
+            }
+            return expired;
+        } catch (Exception e) {
             log.error("Error checking token expiration: {}", e.getMessage());
-            return true;
+            return true; // Assume expired if we can't check
         }
     }
 
@@ -147,8 +202,13 @@ public class JwtService {
      */
     public boolean isAccessToken(String token) {
         try {
-            return "ACCESS".equals(extractTokenType(token));
-        } catch (JwtException e) {
+            String tokenType = extractTokenType(token);
+            boolean isAccess = "ACCESS".equals(tokenType);
+            if (!isAccess) {
+                log.debug("Token is not an access token. Type: {}", tokenType);
+            }
+            return isAccess;
+        } catch (Exception e) {
             log.error("Error checking token type: {}", e.getMessage());
             return false;
         }
@@ -158,8 +218,13 @@ public class JwtService {
      * Get signing key.
      */
     private SecretKey getSigningKey() {
-        byte[] keyBytes = secretKey.getBytes();
-        return Keys.hmacShaKeyFor(keyBytes);
+        try {
+            byte[] keyBytes = secretKey.getBytes();
+            return Keys.hmacShaKeyFor(keyBytes);
+        } catch (Exception e) {
+            log.error("Error creating signing key: {}", e.getMessage());
+            throw new RuntimeException("Failed to create JWT signing key", e);
+        }
     }
 
     /**
@@ -167,13 +232,30 @@ public class JwtService {
      */
     public boolean validateTokenStructure(String token) {
         try {
+            if (token == null || token.trim().isEmpty()) {
+                log.debug("Token is null or empty");
+                return false;
+            }
+
+            // Check basic JWT structure (3 parts separated by dots)
+            String[] parts = token.split("\\.");
+            if (parts.length != 3) {
+                log.debug("Token doesn't have 3 parts. Parts: {}", parts.length);
+                return false;
+            }
+
+            // Try to parse the token
             Jwts.parser()
                     .verifyWith(getSigningKey())
                     .build()
                     .parseSignedClaims(token);
+
             return true;
         } catch (JwtException e) {
             log.debug("Token structure validation failed: {}", e.getMessage());
+            return false;
+        } catch (Exception e) {
+            log.error("Unexpected error during token structure validation: {}", e.getMessage());
             return false;
         }
     }
