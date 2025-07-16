@@ -27,18 +27,12 @@ public class UserManagementService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
 
-    /**
-     * Get all users with pagination.
-     */
     public Page<UserResponse> getAllUsers(Pageable pageable) {
         log.info("Fetching all users with pagination: {}", pageable);
         return userRepository.findAll(pageable)
                 .map(this::convertToUserResponse);
     }
 
-    /**
-     * Get user by ID.
-     */
     public UserResponse getUserById(Long id) {
         log.info("Fetching user by ID: {}", id);
         User user = userRepository.findById(id)
@@ -46,9 +40,6 @@ public class UserManagementService {
         return convertToUserResponse(user);
     }
 
-    /**
-     * Create new user.
-     */
     @Transactional
     public UserResponse createUser(UserCreateRequest request) {
         log.info("Creating new user: {}", request.getUsername());
@@ -97,9 +88,6 @@ public class UserManagementService {
         return convertToUserResponse(user);
     }
 
-    /**
-     * Convert User entity to UserResponse DTO.
-     */
     private UserResponse convertToUserResponse(User user) {
         return UserResponse.builder()
                 .id(user.getId())
